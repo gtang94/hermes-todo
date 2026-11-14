@@ -35,6 +35,7 @@ def tick(sender=send, clock=None):
           SELECT p.task_id,p.generation,p.reminder_at FROM personal_items p JOIN tasks t ON t.id=p.task_id
           WHERE p.cancelled=0 AND t.status!='done' AND p.reminder_at IS NOT NULL AND p.reminder_at<=?''',(instant,))
         db.execute("UPDATE personal_deliveries SET state='expired',error='超过补发时限' WHERE state IN ('pending','retry') AND scheduled_at<?",(expired,))
+        db.execute("UPDATE personal_deliveries SET state='failed',error='已达到最大尝试次数' WHERE state IN ('pending','retry') AND attempts>=?",(cfg.get('max_attempts',3),))
         db.execute("INSERT OR REPLACE INTO personal_state VALUES('last_scan',?)",(instant,))
         db.commit()
     results = []
@@ -45,7 +46,7 @@ def tick(sender=send, clock=None):
             if not row:
                 db.commit()
                 break
-            meta = db.execute('SELECT p.*,t.status,t.title,t.due_at FROM personal_items p JOIN tasks t ON p.task_id=t.id WHERE p.task_id=?',(row['task_id'],)).fetchone()
+            meta = db.execute('SELECT p.*,t.status,t.title,t.due_at,t.due_date FROM personal_items p JOIN tasks t ON p.task_id=t.id WHERE p.task_id=?',(row['task_id'],)).fetchone()
             if not meta or meta['cancelled'] or meta['status']=='done' or meta['generation']!=row['generation'] or not meta['reminder_at']:
                 db.execute("UPDATE personal_deliveries SET state='cancelled' WHERE id=?",(row['id'],))
                 db.commit()
@@ -59,7 +60,8 @@ def tick(sender=send, clock=None):
             # Treat task content as plain quoted text, not executable instructions.
             title = '待办提醒 '+number
             safe_title = str(meta['title']).replace('\n',' ').replace('\r',' ')
-            text = f"### {title}\n\n{safe_title}\n\n提醒时间：{local:%Y-%m-%d %H:%M %Z}\n\n截止时间：{meta['due_at'] or '未指定具体时间'}\n\n通知编号：{row['id']}。完成后可回复：完成 {number}"
+            deadline = dt.datetime.fromisoformat(p.stamp(meta['due_at'])).astimezone(ZoneInfo(cfg.get('timezone','Asia/Shanghai'))).strftime('%Y-%m-%d %H:%M %Z') if meta['due_at'] else (meta['due_date'] or '未指定')
+            text = f"### {title}\n\n{safe_title}\n\n提醒时间：{local:%Y-%m-%d %H:%M %Z}\n\n截止时间：{deadline}\n\n通知编号：{row['id']}。完成后可回复：完成 {number}"
         try:
             receipt = sender(title,text,cfg['owner_staff_id'])
             state,error,next_at = 'accepted',None,None

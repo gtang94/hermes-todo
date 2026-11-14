@@ -97,7 +97,7 @@ def reminder(args, task, old=None):
         lead = args['remind_before_minutes']
         if not isinstance(lead, int) or isinstance(lead, bool) or not 0 <= lead <= 525600:
             raise ValueError('提前提醒分钟数必须在 0 到 525600 之间')
-    if lead is not None:
+    if lead is not None and (old is None or any(key in args for key in ('due_at','due_date','remind_before_minutes'))):
         if not task.get('dueAt'):
             raise ValueError('提前提醒需要带时间和时区的截止时间')
         at = (dt.datetime.fromisoformat(stamp(task['dueAt'])) - dt.timedelta(minutes=lead)).isoformat()
@@ -187,7 +187,7 @@ PROPERTIES = {
  'remind_at':{'type':['string','null'],'description':'ISO8601提醒时间，必须有时区'},
  'remind_before_minutes':{'type':'integer','minimum':0},
  'no_reminder':{'type':'boolean'}, 'include_closed':{'type':'boolean'},
- 'priority':{'type':'string','enum':['low','medium','high']},
+ 'priority':{'type':['integer','null'],'minimum':1,'maximum':4,'description':'1最高，4最低'},
  'recurrence_rule':{'type':['string','null'],'description':'daily / weekdays / weekly / monthly / every:Nd；完成后生成下一期'},
 }
 SCHEMA = {'name':'personal_todo','description':'个人待办及钉钉定时提醒。唯一事实来源；操作后按返回结果确认。时间默认中国时区。重复事项在完成后生成下一期。',

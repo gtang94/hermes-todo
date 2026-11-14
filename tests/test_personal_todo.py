@@ -50,12 +50,16 @@ class PersonalTests(unittest.TestCase):
             reopened=p.apply({'action':'reopen','task_id':task['taskNo']})['task']
             self.assertIsNone(reopened['reminderAt'])
             self.assertEqual(reopened['status'],'open')
+            renamed=p.apply({'action':'update','task_id':task['taskNo'],'title':'renamed'})['task']
+            self.assertIsNone(renamed['reminderAt'])
     def test_snooze_preserves_deadline(self):
         task=self.create()
         later=self.future+dt.timedelta(hours=1)
         result=p.apply({'action':'snooze','task_id':task['taskNo'],'remind_at':later.isoformat()})['task']
         self.assertEqual(result['dueAt'],task['dueAt'])
         self.assertEqual(result['reminderAt'],later.isoformat())
+        renamed=p.apply({'action':'update','task_id':task['taskNo'],'title':'renamed'})['task']
+        self.assertEqual(renamed['reminderAt'],later.isoformat())
     def test_recurring_complete_and_cancel(self):
         task=self.create(recurrence_rule='daily',remind_before_minutes=10)
         result=p.apply({'action':'complete','task_id':task['taskNo']})
@@ -73,4 +77,15 @@ class PersonalTests(unittest.TestCase):
         task=self.create(title='old')
         n.tick(fail,clock+dt.timedelta(days=2))
         self.assertEqual(p.apply({'action':'get','task_id':task['taskNo']})['task']['delivery']['state'],'expired')
+    def test_priority(self):
+        task=self.create(priority=1)
+        self.assertEqual(task['priority'],1)
+    def test_lease_recovery_is_bounded(self):
+        task=self.create();clock=self.future+dt.timedelta(minutes=1)
+        with p.connect() as c:
+            c.execute("INSERT INTO personal_deliveries(task_id,generation,scheduled_at,state,attempts,lease_until) VALUES(?,1,?,'sending',3,?)",(task['id'],self.future.isoformat(),self.future.isoformat()))
+        calls=[];n.tick(lambda *a:calls.append(a),clock)
+        self.assertFalse(calls)
+        self.assertEqual(p.apply({'action':'get','task_id':task['taskNo']})['task']['delivery']['state'],'failed')
 if __name__=='__main__':unittest.main()
+

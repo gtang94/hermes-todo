@@ -8,7 +8,7 @@ Features: private-chat CRUD, per-task reminders, snooze, cancellation, reopen, c
 
 1. Back up Hermes config, environment, cron state and any existing todo database using SQLite Backup API.
 2. Copy `server-plugin/hermes-todo` to `$HERMES_HOME/plugins/hermes-todo`; copy `skill` to `$HERMES_HOME/skills/personal-todo`; copy `todo_tick.py` to `$HERMES_HOME/scripts/todo_tick.py`. Runtime owner must own these paths.
-3. Add `hermes-todo` to config `plugins.enabled` and `personal-todo` to `toolsets`, preserving existing entries.
+3. Add `hermes-todo` to config `plugins.enabled` and `personal-todo` to `platform_toolsets.dingtalk` (preserve the platform default `hermes-dingtalk` if previously absent), preserving existing entries.
 4. Write private mode-0600 `$HERMES_HOME/hermes-todo/personal-settings.json`:
 
 ```json
